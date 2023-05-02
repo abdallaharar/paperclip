@@ -181,10 +181,16 @@ module Paperclip
       def expiring_url(time = 3600, style_name = default_style)
         if path(style_name)
           base_options = { expires_in: time }
-          s3_object(style_name).presigned_url(
-            :get,
-            base_options.merge(s3_url_options),
-          ).to_s
+          do_url = lambda do
+            s3_object(style_name).presigned_url(
+              :get,
+              base_options.merge(s3_url_options),
+            ).to_s
+          end
+
+          value = nil
+          defined?(Timecop) ? Timecop.return { value = do_url.call } : value = do_url.call
+          value
         else
           url(style_name)
         end
@@ -315,7 +321,11 @@ module Paperclip
 
       def exists?(style = default_style)
         if original_filename
-          s3_object(style).exists?
+          do_exists = lambda { s3_object(style).exists? }
+
+          value = nil
+          defined?(Timecop) ? Timecop.return { value = do_exists.call } : value = do_exists.call
+          value
         else
           false
         end
@@ -376,7 +386,11 @@ module Paperclip
             write_options[:metadata] = @s3_metadata unless @s3_metadata.empty?
             write_options.merge!(@s3_headers)
 
-            s3_object(style).upload_file(file.path, write_options)
+            do_upload = lambda { s3_object(style).upload_file(file.path, write_options) }
+
+            value = nil
+            defined?(Timecop) ? Timecop.return { value = do_upload.call } : value = do_upload.call
+            value
           rescue ::Aws::S3::Errors::NoSuchBucket
             create_bucket
             retry
@@ -412,11 +426,17 @@ module Paperclip
 
       def copy_to_local_file(style, local_dest_path)
         log("copying #{path(style)} to local file #{local_dest_path}")
-        ::File.open(local_dest_path, 'wb') do |local_file|
-          s3_object(style).get do |chunk|
-            local_file.write(chunk)
+        do_copy = lambda do
+          ::File.open(local_dest_path, 'wb') do |local_file|
+            s3_object(style).get do |chunk|
+              local_file.write(chunk)
+            end
           end
         end
+
+        value = nil
+        defined?(Timecop) ? Timecop.return { value = do_copy.call } : value = do_copy.call
+        value
       rescue Aws::Errors::ServiceError => e
         warn("#{e} - cannot copy #{path(style)} to local file #{local_dest_path}")
         false
