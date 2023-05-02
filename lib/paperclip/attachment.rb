@@ -426,8 +426,19 @@ module Paperclip
       Paperclip.log(message)
     end
 
+    def storage_option
+      storage_option = @options[:storage]
+
+      if storage_option.is_a?(Proc)
+        storage_option = storage_option.call(self)
+      end
+
+      storage_option
+    end
+
     def initialize_storage #:nodoc:
-      storage_class_name = @options[:storage].to_s.downcase.camelize
+      storage_class_name = storage_option.to_s.downcase.camelize
+
       begin
         storage_module = Paperclip::Storage.const_get(storage_class_name)
       rescue NameError
